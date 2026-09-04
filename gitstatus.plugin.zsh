@@ -422,10 +422,8 @@ function _gitstatus_daemon"${1:-}"() {
 
       local gitstatus_plugin_dir_var=_gitstatus_plugin_dir$fsuf
       local gitstatus_plugin_dir=${(P)gitstatus_plugin_dir_var}
-      builtin set -- -d $gitstatus_plugin_dir -s $uname_s -m $uname_m \
-        -p "printf '\\001' >&$pipe_fd" -e $pipe_fd -- _gitstatus_set_daemon$fsuf
-      [[ ${GITSTATUS_AUTO_INSTALL:-1} == (|-|+)<1-> ]] || builtin set -- -n "$@"
-      builtin source $gitstatus_plugin_dir/install     || return
+      builtin set -- -d $gitstatus_plugin_dir -e $pipe_fd -- _gitstatus_set_daemon$fsuf
+      builtin source $gitstatus_plugin_dir/install      || return
       [[ -n $_gitstatus_zsh_daemon ]]                  || return
       [[ -n $_gitstatus_zsh_version ]]                 || return
       [[ $_gitstatus_zsh_downloaded == [01] ]]         || return
@@ -442,24 +440,13 @@ function _gitstatus_daemon"${1:-}"() {
       if [[ -x $_gitstatus_zsh_daemon ]]; then
         HOME=$home $_gitstatus_zsh_daemon -G $_gitstatus_zsh_version "${(@)args}" >&$pipe_fd
         local -i ret=$?
-        [[ $ret == (0|129|130|131|137|141|143|159) ]] && return ret
+        if (( ret == 11 )); then
+          print -nru $pipe_fd -- $'[gitstatus] error: gitstatusd version mismatch: '"$_gitstatus_zsh_daemon"$' is stale.\n[gitstatus] Rebuild it, then restart your shell:\n\n  cd '"$gitstatus_plugin_dir"$' && ./build -w -s -d docker\n'
+        fi
+        return ret
       fi
 
-      (( ! _gitstatus_zsh_downloaded ))                || return
-      [[ ${GITSTATUS_AUTO_INSTALL:-1} == (|-|+)<1-> ]] || return
-      [[ $_gitstatus_zsh_daemon == \
-         ${GITSTATUS_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/gitstatus}/* ]] || return
-
-      builtin set -- -f "$@"
-      _gitstatus_zsh_daemon=
-      _gitstatus_zsh_version=
-      _gitstatus_zsh_downloaded=
-      builtin source $gitstatus_plugin_dir/install || return
-      [[ -n $_gitstatus_zsh_daemon ]]              || return
-      [[ -n $_gitstatus_zsh_version ]]             || return
-      [[ $_gitstatus_zsh_downloaded == 1 ]]        || return
-
-      HOME=$home $_gitstatus_zsh_daemon -G $_gitstatus_zsh_version "${(@)args}" >&$pipe_fd
+      return 1
     } always {
       local -i ret=$?
       zf_rm -f -- $file_prefix.lock $file_prefix.fifo

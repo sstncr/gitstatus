@@ -158,9 +158,7 @@ function gitstatus_start() {
             _gitstatus_bash_downloaded="$3"
           }
 
-          set -- -d "$gitstatus_plugin_dir" -s "$uname_s" -m "$uname_m" \
-            -p "printf '.\036' >&$fd_out" -e "$fd_out" -- _gitstatus_set_daemon
-          [[ "${GITSTATUS_AUTO_INSTALL:-1}" -ne 0 ]]  || set -- -n "$@"
+          set -- -d "$gitstatus_plugin_dir" -e "$fd_out" -- _gitstatus_set_daemon
           source "$gitstatus_plugin_dir"/install      || return
           [[ -n "$_gitstatus_bash_daemon" ]]          || return
           [[ -n "$_gitstatus_bash_version" ]]         || return
@@ -186,35 +184,18 @@ function gitstatus_start() {
             wait "$pid"
             local ret=$?
             trap - ${sig[@]}
+            if [[ "$ret" == 11 ]]; then
+              echo -nE "[gitstatus] error: gitstatusd version mismatch: $_gitstatus_bash_daemon is stale."$'\n[gitstatus] Rebuild it, then restart your shell:\n\n  cd '"$gitstatus_plugin_dir"$' && ./build -w -s -d docker\n' >&"$fd_out"
+            fi
             case "$ret" in
               0|129|130|131|137|141|143|159)
                 echo -nE $'}bye\x1f0\x1e' >&"$fd_out"
-                exit "$ret"
               ;;
             esac
+            exit "$ret"
           fi
 
-          (( ! _gitstatus_bash_downloaded ))         || return
-          [[ "${GITSTATUS_AUTO_INSTALL:-1}" -ne 0 ]] || return
-          [[ "$_gitstatus_bash_daemon" == \
-             "${GITSTATUS_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/gitstatus}"/* ]] || return
-
-          set -- -f "$@"
-          _gitstatus_bash_daemon=
-          _gitstatus_bash_version=
-          _gitstatus_bash_downloaded=
-          source "$gitstatus_plugin_dir"/install   || return
-          [[ -n "$_gitstatus_bash_daemon" ]]       || return
-          [[ -n "$_gitstatus_bash_version" ]]      || return
-          [[ "$_gitstatus_bash_downloaded" == 1 ]] || return
-
-          HOME="$home" "$_gitstatus_bash_daemon" \
-            -G "$_gitstatus_bash_version" "${daemon_args[@]}" <&"$fd_in" >&"$fd_out" &
-          local pid=$!
-          trap "trap - ${sig[*]}; kill $pid &>/dev/null" ${sig[@]}
-          wait "$pid"
-          trap - ${sig[@]}
-          echo -nE $'}bye\x1f0\x1e' >&"$fd_out"
+          exit 1
         ) & disown
       ) & disown
     } 0</dev/null &>"$GITSTATUS_DAEMON_LOG"

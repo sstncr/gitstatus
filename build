@@ -94,7 +94,7 @@ if [ -n "$gitstatus_install_tools" ]; then
         command apk add binutils cmake gcc g++ git make musl-dev perl-utils
       elif command -v apt-get >/dev/null 2>&1; then
         apt-get update
-        apt-get install -y binutils cmake gcc g++ make wget
+        apt-get install -y binutils cmake gcc g++ make wget git
       else
         >&2 echo "[error] -s is not supported on this system"
         exit 1
@@ -585,7 +585,7 @@ case "$gitstatus_kernel" in
       fi
       if [ -z "$docker_image" ]; then
         case "$gitstatus_arch" in
-          x86_64)             docker_image=alpine:3.11.6;;
+          x86_64)             docker_image=debian:stable;;
           x86|i386|i586|i686) docker_image=i386/alpine:3.11.6;;
           armv6l|armhf)       docker_image=arm32v6/alpine:3.11.6;;
           armv7l)             docker_image=arm32v7/alpine:3.11.6;;
